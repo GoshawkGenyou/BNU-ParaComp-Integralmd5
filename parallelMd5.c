@@ -656,7 +656,7 @@ int thread_manager(){
     int tactive = 0;
     pthread_t threads[THREADS];
     pmd5_arg args[THREADS];
-    unsigned long long chunk_size = pow(PLAINNUM, len - 1)  / PLAINNUM;
+    unsigned long long chunk_size = pow(PLAINNUM, len)  / PLAINNUM;
     unsigned long long chunk_part[PLAINNUM];
     partition(&chunk_part);
     shuffle(&chunk_part, PLAINNUM);
@@ -667,7 +667,7 @@ int thread_manager(){
     	for (int i = 0; i < THREADS; i++) {
 	        args[i].thread_id = i;
 	        args[i].start = chunk_part[k + i];
-	        args[i].end = (k + i + 1 < PLAINNUM) ? chunk_part[k + i + 1] : total_comb;
+	        args[i].end = (k + i + 1 < PLAINNUM) ? args[i].start + chunk_size: total_comb;
 	        pthread_create(&threads[i], NULL, md5_thread, &args[i]);
     	}
     	for (int i = 0; i < THREADS; i++) {
@@ -682,7 +682,7 @@ int thread_manager(){
     return 0;
 }
 
-int partition2(unsigned long long *arr, unsigned long long *out, unsigned int arrlen, unsigned long long chunk_size, unsigned long long size_out, int generate){
+int partition2(unsigned long long *out, int arrlen, unsigned long long chunk_size, int generate){
 	if (generate) {
 	    char s[LEN + 1];
 		for (int i = 0; i < LEN; i++) {
@@ -693,42 +693,41 @@ int partition2(unsigned long long *arr, unsigned long long *out, unsigned int ar
 			s[0] = plaindef[i];
 			out[i] = get_combination_index(s);
 		}
-		return PLAINNUM;
+		return 1;
 	} else {
 		for (int i = 0; i < arrlen; i++) {
-			for (int j = 0; j < PLAINNUM; j++) {
-				out[i * PLAINNUM + j] = arr[i] + chunk_size * j;
-			}
+			out[i] = i * chunk_size;
 		}
-		return arrlen * PLAINNUM;
+		return 1;
 	}
+	return 0;
 }
 
-int thread_manager2(){
+int thread_manager2(int sublevel){
     double thread_time = 0.0;
     double aggregate_time = 0.0;
     int tactive = 0;
     pthread_t threads[THREADS];
     pmd5_arg args[THREADS];
-    unsigned long long chunk_max_size = pow(PLAINNUM, LEN - 1);
-    unsigned long long chunk_size = PLAINNUM;
-    int chunks;
-    unsigned long long chunk_part[chunk_max_size];
-    unsigned long long chunk_temp[chunk_max_size];
-    chunks = partition2(&chunk_part, &chunk_temp, PLAINNUM, chunk_size, PLAINNUM, 1);
-    printf("Chunk Size: %lld\n", chunk_size);
-    //chunk_size = partition2(&chunk_temp, &chunk_part, chunk_size, chunk_size * chunk_size, 0);
-    printf("Chunk Size: %lld\n", chunk_size);
-    //shuffle(&chunk_part, PLAINNUM);
-    
+	unsigned long long chunk_num = pow(PLAINNUM, sublevel);
+	unsigned long long chunk_size = total_comb / chunk_num;
+	printf("Chunks Total: %lld\n", chunk_num);
+	printf("Chunk Size: %lld\n", chunk_size);
+ 	unsigned long long *chunk_part = malloc(sizeof(unsigned long long) * chunk_num);
+	if (chunk_part == NULL) {
+	    perror("Failed to allocate memory");
+	    exit(EXIT_FAILURE);
+	}
+	partition2(chunk_part, chunk_num, chunk_size, 1);
+	partition2(chunk_part, chunk_num, chunk_size, 0);
+	//shuffle(chunk_part, chunk_num);
     int active = 0;
-    for (int j = 0; j < chunks; j++) {
-        int k = j * THREADS;
+    for (int j = 0; j < chunk_num; j++) {
         active = 0;
     	for (int i = 0; i < THREADS; i++) {
 	        args[i].thread_id = i;
-	        args[i].start = chunk_part[k + i];
-	        args[i].end = (k + i + 1 < PLAINNUM) ? chunk_part[k + i + 1] : total_comb;
+	        args[i].start = chunk_part[j + i];
+	        args[i].end = (j + i + 1 < PLAINNUM) ? chunk_part[j + i + 1] : total_comb;
 	        pthread_create(&threads[i], NULL, md5_thread, &args[i]);
     	}
     	for (int i = 0; i < THREADS; i++) {
@@ -740,6 +739,7 @@ int thread_manager2(){
     //double average_time = 0.0;
     //if (tactive > 0) average_time = aggregate_time / tactive; // averaged clocks
     //printf("Threads Run: %d\n", tactive);
+    free(chunk_part);
     return 0;
 }
 
@@ -748,16 +748,40 @@ int main() {
     struct timeval start, end;
     double elapsed_time;
     init();
-    /**
-    printf("%lld\n", get_combination_index("aaaaa"));
-    printf("%lld\n", get_combination_index("aaaab"));
-    printf("%lld\n", get_combination_index("aaaac"));
-    printf("%lld\n", get_combination_index("daaaa"));
-    printf("%lld\n", get_combination_index("00000"));
-    printf("%lld\n", get_combination_index("99999"));
-    char testplain[len + 1];
-    get_string_from_index(get_combination_index("99999"), &testplain);
-    printf("%s\n", testplain);
+    /*
+    if (DEBUG) {
+		printf("%lld\n", get_combination_index("aaaaaa"));
+		printf("%lld\n", get_combination_index("aabaaa"));
+		printf("%lld\n", get_combination_index("aacaaa"));
+		printf("%lld\n", get_combination_index("aadaaa"));
+		printf("%lld\n", get_combination_index("baaaaa"));
+		printf("%lld\n", get_combination_index("babaaa"));
+		
+		get_string_from_index(get_combination_index("999999"), &testplain);
+		printf("%s\n", testplain);
+		char testplain[LEN + 1];
+		unsigned long long chunk_num = pow(PLAINNUM, 2);
+		unsigned long long chunk_size = total_comb / chunk_num;
+		printf("Chunks Total: %lld\n", chunk_num);
+		printf("Chunk Size: %lld\n", chunk_size);
+	 	unsigned long long *arr = malloc(sizeof(unsigned long long) * chunk_num);
+		if (arr == NULL) {
+		    perror("Failed to allocate memory");
+		    exit(EXIT_FAILURE);
+		}
+		partition2(arr, chunk_num, chunk_size, 1);
+		partition2(arr, chunk_num, chunk_size, 0);
+		shuffle(arr, chunk_num);
+		for (int i = 0; i < chunk_num; i++) {
+			//printf("%lld\n", arr[i]);
+			get_string_from_index(arr[i], &testplain);
+			printf("%s\n", testplain);
+		}
+		printf("%lld\n", total_comb);
+    }
+    */
+    
+    /*
     //baseattempt();
     
     gettimeofday(&start, NULL); // Start timing
@@ -768,9 +792,16 @@ int main() {
     printf("Normal executed in %.6fs\n", elapsed_time);
     */
     if (DEBUG) gettimeofday(&start, NULL); // Start timing
+    thread_manager();
+    if (DEBUG) {
+		gettimeofday(&end, NULL); // End timing
+		elapsed_time = (end.tv_sec - start.tv_sec) + 
+		                      (end.tv_usec - start.tv_usec) / 1e6;
+		printf("Parallel executed in %.6fs\n", elapsed_time);
+    }
+    if (DEBUG) gettimeofday(&start, NULL); // Start timing
     
-    //thread_manager();
-    thread_manager2();
+    //thread_manager2(2);
     if (DEBUG) {
 		gettimeofday(&end, NULL); // End timing
 		elapsed_time = (end.tv_sec - start.tv_sec) + 
