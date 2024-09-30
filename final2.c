@@ -10,7 +10,7 @@
 #define LEN 5
 #define PLAINNUM 36
 #define THREADS 12
-#define DEBUG 1
+#define DEBUG 0
 #define PLAIN "abc123\0"
 
 /*
@@ -561,7 +561,7 @@ int baseattempt2(){
     for (unsigned long long i = 0; i < total_comb; i++) {
         get_string_from_index(i, &plain);
         MD5Init(&md5Guess);
-        MD5Update(&md5Guess, plain, LEN);
+        MD5Update(&md5Guess, plain, len);
         MD5Final(&md5Guess);
 	if (cmpmd5(md5Guess.digest, base.digest)) {
     	    // found
@@ -600,7 +600,7 @@ void *md5_thread(void* args){
 	    // Build the string from the index
 	    get_string_from_index(i, &plain);
         MD5Init(&md5Guess);
-        MD5Update(&md5Guess, plain, LEN);
+        MD5Update(&md5Guess, plain, len);
         MD5Final(&md5Guess);
         
 		if (cmpmd5(md5Guess.digest, base.digest)) {
@@ -623,15 +623,16 @@ void *md5_thread(void* args){
 }
 
 int partition(unsigned long long *arr){
-    char s[LEN + 1];
-    for (int i = 0; i < LEN; i++) {
-		s[i] = plaindef[0];
+    char s[len + 1];
+    for (int i = 0; i < len; i++) {
+	s[i] = plaindef[0];
     }
-    s[LEN] = '\0';
+    s[len] = '\0';
     for (int i = 0; i < PLAINNUM; i++) {
-		s[0] = plaindef[i];
-		arr[i] = get_combination_index(s);
+	s[0] = plaindef[i];
+	arr[i] = get_combination_index(s);
     }
+
 }
 
 void shuffle(unsigned long long *array, size_t n) {
@@ -682,67 +683,6 @@ int thread_manager(){
     return 0;
 }
 
-int partition2(unsigned long long *arr, unsigned long long *out, unsigned int arrlen, unsigned long long chunk_size, unsigned long long size_out, int generate){
-	if (generate) {
-	    char s[LEN + 1];
-		for (int i = 0; i < LEN; i++) {
-			s[i] = plaindef[0];
-		}
-		s[LEN] = '\0';
-		for (int i = 0; i < PLAINNUM; i++) {
-			s[0] = plaindef[i];
-			out[i] = get_combination_index(s);
-		}
-		return PLAINNUM;
-	} else {
-		for (int i = 0; i < arrlen; i++) {
-			for (int j = 0; j < PLAINNUM; j++) {
-				out[i * PLAINNUM + j] = arr[i] + chunk_size * j;
-			}
-		}
-		return arrlen * PLAINNUM;
-	}
-}
-
-int thread_manager2(){
-    double thread_time = 0.0;
-    double aggregate_time = 0.0;
-    int tactive = 0;
-    pthread_t threads[THREADS];
-    pmd5_arg args[THREADS];
-    unsigned long long chunk_max_size = pow(PLAINNUM, LEN - 1);
-    unsigned long long chunk_size = PLAINNUM;
-    int chunks;
-    unsigned long long chunk_part[chunk_max_size];
-    unsigned long long chunk_temp[chunk_max_size];
-    chunks = partition2(&chunk_part, &chunk_temp, PLAINNUM, chunk_size, PLAINNUM, 1);
-    printf("Chunk Size: %lld\n", chunk_size);
-    //chunk_size = partition2(&chunk_temp, &chunk_part, chunk_size, chunk_size * chunk_size, 0);
-    printf("Chunk Size: %lld\n", chunk_size);
-    //shuffle(&chunk_part, PLAINNUM);
-    
-    int active = 0;
-    for (int j = 0; j < chunks; j++) {
-        int k = j * THREADS;
-        active = 0;
-    	for (int i = 0; i < THREADS; i++) {
-	        args[i].thread_id = i;
-	        args[i].start = chunk_part[k + i];
-	        args[i].end = (k + i + 1 < PLAINNUM) ? chunk_part[k + i + 1] : total_comb;
-	        pthread_create(&threads[i], NULL, md5_thread, &args[i]);
-    	}
-    	for (int i = 0; i < THREADS; i++) {
-	        pthread_join(threads[i], NULL);
-	        if(args[i].execution) active++;
-        }
-        tactive += active;        
-    }
-    //double average_time = 0.0;
-    //if (tactive > 0) average_time = aggregate_time / tactive; // averaged clocks
-    //printf("Threads Run: %d\n", tactive);
-    return 0;
-}
-
 
 int main() {
     struct timeval start, end;
@@ -769,8 +709,7 @@ int main() {
     */
     if (DEBUG) gettimeofday(&start, NULL); // Start timing
     
-    //thread_manager();
-    thread_manager2();
+    thread_manager();
     if (DEBUG) {
 		gettimeofday(&end, NULL); // End timing
 		elapsed_time = (end.tv_sec - start.tv_sec) + 

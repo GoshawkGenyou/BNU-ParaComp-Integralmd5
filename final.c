@@ -2,14 +2,20 @@
 #include <pthread.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
-#define NUM_THREADS 8
-#define PARTS 800000000
+#define NUM_THREADS 4
+#define PARTS 484000
 
 typedef struct _args_integral {
-    int part;
-    int total;
+    unsigned long long part_start;
+    unsigned long long part_end;
+    long double width;
     int thread;
+    struct {
+    	long double value;
+    	pthread_mutex_t mutex;
+    } *result;
 } args_integral;
 
 long double psum[NUM_THREADS] = { 0 };
@@ -29,18 +35,6 @@ int generate_func(int part) {
     printf("\n%.11llf\n", sum);
 }
 
-void *pgenerate(void* arg) {
-    args_integral *data = (args_integral*) arg;
-    // printf("\nId: %d\n", data->thread);
-    int val;
-    for (int i = 0; i < data->part; i++) {
-    	val = data->thread * data->part + i;
-	//data->arr[i] = 4.0 / (1.0 + powl(val * 1.0 / data->total, 2)); 
-    }
-    pthread_exit(NULL);
-}
-
-
 int myintegral(double *arr, int part) {
     double sum = 0.0;
     double ipart = 1.0/part;
@@ -51,18 +45,18 @@ int myintegral(double *arr, int part) {
     return 0;
 }
 
-int *pintegral(void *args){
+void *pintegral(void *args){
     long double sum = 0.0;
     args_integral* data = (args_integral*) args;
-    long double ipart = 1.0 / data->total;
-    int val = data->thread * data->part;
-    int part = data->part;
     long double var;
-    for (int i = 0; i < part; i++) {
-	var = (val + i) * 1.0 / data->total;	
-	sum += 1.0 / (1.0 + (var * var)) * ipart;
+    for (unsigned long long i = data->part_start; i < data->part_end; i++) {
+		var = (i + 0.5) * data->width; // midpoint
+        sum += 4.0 / (1.0 + var * var);
     }
-    psum[data->thread] = sum * 4;
+    pthread_mutex_lock(&data->result->mutex);
+    data->result->value += sum * data->width; // update the result
+    pthread_mutex_unlock(&data->result->mutex);
+
     pthread_exit(NULL);
 };
 
@@ -75,34 +69,61 @@ int basic(void) {
     return 0;
 }
 
+void partitioner(unsigned long long *parts) {
+	unsigned long long chunk = (PARTS + NUM_THREADS - 1) / NUM_THREADS; // Ceiling division
+	for (unsigned long long i = 0; i < NUM_THREADS + 1; i++) {
+		parts[i] = chunk * i;
+	}
+	parts[NUM_THREADS] = PARTS;
+}
+
 int parallel(void) {
     // overheads
     pthread_t threads[NUM_THREADS];
     args_integral arg_array[NUM_THREADS]; 
     long taskids[NUM_THREADS];
-    int rc;
     args_integral params;
-    params.total = parts;
-    params.part = parts / NUM_THREADS;
+    unsigned long long chunks[NUM_THREADS + 1];
+    long double width = 1.0/ PARTS;
+	memset(chunks, 0, 5);
+	partitioner(&chunks);
+    struct {
+        long double value;
+        pthread_mutex_t mutex;
+    } result = {0.0, PTHREAD_MUTEX_INITIALIZER};
+    params.result = &result;
+    
     for (int t = 0; t < NUM_THREADS; t++) {
+        params.part_start = chunks[t];
+    	params.part_end = chunks[t + 1]; // no risk of segfault as chunk always NUM + 1
         params.thread = taskids[t] = t;
-	arg_array[t] = params;
-	rc = pthread_create(&threads[t], NULL, pintegral, (void *) &arg_array[t]);	
+        params.width = width;
+		arg_array[t] = params;
+		pthread_create(&threads[t], NULL, pintegral, (void *) &arg_array[t]);	
 	//printf("Thread %d\n", t);
     }
     // parallelable, but too annoying
     //for (int i = 0; i < parts; i++) {
     //    printf("%.11f ", yval[i]);
     //}
-    long double final = 0.0;
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_join(threads[i], NULL);
-	final += psum[i];
     }
-    printf("Parallel Integral: %.11llf\n", final);
+    printf("%.11llf\n", result.value);
 }
 
 int main(void) {
+	/* verify
+	int chunks[NUM_THREADS + 1];
+	memset(chunks, 0, 5);
+	partitioner(&chunks);
+	for (int i = 0; i < NUM_THREADS + 1; i++) {
+		printf("%d ", chunks[i]);
+	}
+	printf("\n");
+	*/
+	
+    /*
     clock_t start, end;
     printf("%d", parts);
     start = clock();
@@ -111,8 +132,12 @@ int main(void) {
     cpu_time = ((double) end - start) / CLOCKS_PER_SEC;
     printf("Base: %.5f s\n", cpu_time);
     start = clock();
+    */
+    
     parallel();
+    /*
     end = clock();
     cpu_time = ((double) end - start) / CLOCKS_PER_SEC;
     printf("Para: %.5f s\n", cpu_time);
+    */
 }
