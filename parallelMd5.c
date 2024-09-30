@@ -7,10 +7,10 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <sys/time.h>
-#define LEN 6
+#define LEN 5
 #define PLAINNUM 36
 #define THREADS 12
-#define DEBUG 0
+#define DEBUG 1
 #define PLAIN "abc123\0"
 
 /*
@@ -563,13 +563,13 @@ int baseattempt2(){
         MD5Init(&md5Guess);
         MD5Update(&md5Guess, plain, LEN);
         MD5Final(&md5Guess);
-	if (cmpmd5(md5Guess.digest, base.digest)) {
-    	    // found
-    	    //printf("Normal found: %s\nHash Validation: ", plain);
-    	    MDPrint(md5Guess);
-    	printf("\n");
-	    return 1;
-	}
+		if (cmpmd5(md5Guess.digest, base.digest)) {
+			    // found
+			    printf("Normal found: %s\nHash Validation: ", plain);
+			    MDPrint(&md5Guess);
+			printf("\n");
+			return 1;
+		}
     }
     return 0;
 }
@@ -590,7 +590,7 @@ void *md5_thread(void* args){
     get_string_from_index(arg->start, &guess_start);
     get_string_from_index(arg->end - 1, &guess_end);
     guess_start[LEN] = guess_end[LEN] = '\0'; // null terminated
-    if (DEBUG) printf("Thread %d processing characters: %s to %s\n", arg->thread_id, guess_start, guess_end);
+    //if (DEBUG) printf("Thread %d processing characters: %s to %s\n", arg->thread_id, guess_start, guess_end);
     
     for (unsigned long long i = arg->start; i < arg->end; i++) {
 	    // another thread / current thread found it.	
@@ -618,7 +618,7 @@ void *md5_thread(void* args){
 			return NULL;
 		}
     }
-    if (DEBUG) printf("Thread %d exited at %s\n", arg->thread_id, plain);
+    //if (DEBUG) printf("Thread %d exited at %s\n", arg->thread_id, plain);
     return NULL;
 }
 
@@ -783,24 +783,26 @@ int main() {
     }
     */
     
-    /*
-    //baseattempt();
     
-    gettimeofday(&start, NULL); // Start timing
-    //baseattempt2();
-    gettimeofday(&end, NULL); // End timing
-    elapsed_time = (end.tv_sec - start.tv_sec) + 
-                          (end.tv_usec - start.tv_usec) / 1e6;
-    printf("Normal executed in %.6fs\n", elapsed_time);
-    */
+    //baseattempt();
+    if (DEBUG) {
+		gettimeofday(&start, NULL); // Start timing
+		baseattempt2();
+		gettimeofday(&end, NULL); // End timing
+		elapsed_time = (end.tv_sec - start.tv_sec) + 
+		                      (end.tv_usec - start.tv_usec) / 1e6;
+		printf("Normal executed in %.6fs\n", elapsed_time);
+    }
+    /*
     if (DEBUG) gettimeofday(&start, NULL); // Start timing
-    //thread_manager();
+    thread_manager();
     if (DEBUG) {
 		gettimeofday(&end, NULL); // End timing
 		elapsed_time = (end.tv_sec - start.tv_sec) + 
 		                      (end.tv_usec - start.tv_usec) / 1e6;
 		printf("Parallel executed in %.6fs\n", elapsed_time);
     }
+    */
     if (DEBUG) gettimeofday(&start, NULL); // Start timing
     
     thread_manager2(2);

@@ -3,8 +3,9 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#define NUM_THREADS 4
+#include <sys/time.h>
+#define NUM_THREADS 8
+#define DEBUG 1
 #define PARTS 484000
 
 typedef struct _args_integral {
@@ -25,12 +26,12 @@ int myintegral(double *arr, int part);
 
 // parallelable
 int generate_func(int part) {
-    double ipart = 1.0 / part;
+    long double width = 1.0 / PARTS;
     long double sum = 0.0;
     long double var;
-    for (int i = 0; i < part; i++){
-	var = (i * 1.0 / part);
-	sum += 4.0 / (1.0 + (var * var)) * ipart;
+    for (unsigned long long i = 0; i < part; i++) {
+		var = (i + 0.5) * width; // midpoint
+        sum += 4.0 / (1.0 + var * var) * width;
     }
     printf("\n%.11llf\n", sum);
 }
@@ -84,7 +85,7 @@ int parallel(void) {
     long taskids[NUM_THREADS];
     args_integral params;
     unsigned long long chunks[NUM_THREADS + 1];
-    long double width = 1.0/ PARTS;
+    long double width = 1.0 / PARTS;
 	memset(chunks, 0, 5);
 	partitioner(&chunks);
     struct {
@@ -113,6 +114,8 @@ int parallel(void) {
 }
 
 int main(void) {
+    struct timeval start, end;
+    double elapsed_time;
 	/* verify
 	int chunks[NUM_THREADS + 1];
 	memset(chunks, 0, 5);
@@ -122,22 +125,29 @@ int main(void) {
 	}
 	printf("\n");
 	*/
+	if (DEBUG) {
+		printf("Threads: %d Partitions: %d\n", NUM_THREADS, PARTS);
+	}
 	
-    /*
-    clock_t start, end;
-    printf("%d", parts);
-    start = clock();
+    if (DEBUG) gettimeofday(&start, NULL); // Start timing
+    
     basic();
-    end = clock();
-    cpu_time = ((double) end - start) / CLOCKS_PER_SEC;
-    printf("Base: %.5f s\n", cpu_time);
-    start = clock();
-    */
+    if (DEBUG) {
+		gettimeofday(&end, NULL); // End timing
+		elapsed_time = (end.tv_sec - start.tv_sec) + 
+		                      (end.tv_usec - start.tv_usec) / 1e6;
+		printf("Basic executed in: \t%.6fs\n", elapsed_time);
+    }
+	
+    
+    if (DEBUG) gettimeofday(&start, NULL); // Start timing
     
     parallel();
-    /*
-    end = clock();
-    cpu_time = ((double) end - start) / CLOCKS_PER_SEC;
-    printf("Para: %.5f s\n", cpu_time);
-    */
+    if (DEBUG) {
+		gettimeofday(&end, NULL); // End timing
+		elapsed_time = (end.tv_sec - start.tv_sec) + 
+		                      (end.tv_usec - start.tv_usec) / 1e6;
+		printf("Parallel executed in: \t%.6fs\n", elapsed_time);
+    }
+	
 }
