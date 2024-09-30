@@ -7,10 +7,10 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <sys/time.h>
-#define LEN 5
+#define LEN 6
 #define PLAINNUM 36
 #define THREADS 12
-#define DEBUG 1
+#define DEBUG 0
 #define PLAIN "abc123\0"
 
 /*
@@ -711,8 +711,9 @@ int thread_manager2(int sublevel){
     pmd5_arg args[THREADS];
 	unsigned long long chunk_num = pow(PLAINNUM, sublevel);
 	unsigned long long chunk_size = total_comb / chunk_num;
-	printf("Chunks Total: %lld\n", chunk_num);
-	printf("Chunk Size: %lld\n", chunk_size);
+	if (DEBUG){ printf("Chunks Total: %lld\n", chunk_num);
+		printf("Chunk Size: %lld\n", chunk_size);
+	}
  	unsigned long long *chunk_part = malloc(sizeof(unsigned long long) * chunk_num);
 	if (chunk_part == NULL) {
 	    perror("Failed to allocate memory");
@@ -720,14 +721,15 @@ int thread_manager2(int sublevel){
 	}
 	partition2(chunk_part, chunk_num, chunk_size, 1);
 	partition2(chunk_part, chunk_num, chunk_size, 0);
-	//shuffle(chunk_part, chunk_num);
+	shuffle(chunk_part, chunk_num);
     int active = 0;
     for (int j = 0; j < chunk_num; j++) {
+        int k = j * THREADS;
         active = 0;
     	for (int i = 0; i < THREADS; i++) {
 	        args[i].thread_id = i;
-	        args[i].start = chunk_part[j + i];
-	        args[i].end = (j + i + 1 < PLAINNUM) ? chunk_part[j + i + 1] : total_comb;
+	        args[i].start = chunk_part[k + i];
+	        args[i].end = (args[i].start + chunk_size < total_comb ) ? args[i].start + chunk_size: total_comb;
 	        pthread_create(&threads[i], NULL, md5_thread, &args[i]);
     	}
     	for (int i = 0; i < THREADS; i++) {
@@ -792,7 +794,7 @@ int main() {
     printf("Normal executed in %.6fs\n", elapsed_time);
     */
     if (DEBUG) gettimeofday(&start, NULL); // Start timing
-    thread_manager();
+    //thread_manager();
     if (DEBUG) {
 		gettimeofday(&end, NULL); // End timing
 		elapsed_time = (end.tv_sec - start.tv_sec) + 
@@ -801,7 +803,7 @@ int main() {
     }
     if (DEBUG) gettimeofday(&start, NULL); // Start timing
     
-    //thread_manager2(2);
+    thread_manager2(2);
     if (DEBUG) {
 		gettimeofday(&end, NULL); // End timing
 		elapsed_time = (end.tv_sec - start.tv_sec) + 
