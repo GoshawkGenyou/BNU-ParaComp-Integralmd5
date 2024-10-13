@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-#define NUM_THREADS 8
+#define NUM_THREADS 12
 #define DEBUG 1
 #define PARTS 484000
 
@@ -22,7 +22,7 @@ typedef struct _args_integral {
 long double psum[NUM_THREADS] = { 0 };
 int const parts = PARTS;
 double cpu_time;
-int myintegral(double *arr, int part);
+int myintegral(int part);
 
 // parallelable
 int generate_func(int part) {
@@ -36,13 +36,15 @@ int generate_func(int part) {
     printf("\n%.11llf\n", sum);
 }
 
-int myintegral(double *arr, int part) {
-    double sum = 0.0;
-    double ipart = 1.0/part;
-    for (int i = 0; i < part; i++) {
-        sum += ipart * arr[i];
+int myintegral(int part) {
+    long double width = 1.0 / PARTS;
+    long double sum = 0.0;
+    long double var;
+    for (unsigned long long i = 0; i < part; i++) {
+		var = (i + 0.5) * width; // midpoint
+        sum += 1.0 / (1.0 + var * var) * width;
     }
-    printf("\n%.11lf\n", sum);
+    printf("\n%.11llf\n", sum * 4.0);
     return 0;
 }
 
@@ -62,7 +64,7 @@ void *pintegral(void *args){
 };
 
 int basic(void) {
-    generate_func(parts);
+    myintegral(parts);
     /**for (int i = 0; i < parts; i++) {
         printf("%.11f ", yval[i]);
     }

@@ -7,10 +7,10 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <sys/time.h>
-#define LEN 5
+#define LEN 6
 #define PLAINNUM 36
 #define THREADS 12
-#define DEBUG 1
+#define DEBUG 0
 #define PLAIN "abc123\0"
 
 /*
@@ -586,12 +586,13 @@ void *md5_thread(void* args){
 	arg->execution = 1;
     char plain[len + 1];
     MD5_CTX md5Guess;
-    char guess_start[LEN + 1], guess_end[LEN + 1];
-    get_string_from_index(arg->start, &guess_start);
-    get_string_from_index(arg->end - 1, &guess_end);
-    guess_start[LEN] = guess_end[LEN] = '\0'; // null terminated
-    //if (DEBUG) printf("Thread %d processing characters: %s to %s\n", arg->thread_id, guess_start, guess_end);
-    
+    if (DEBUG) {
+    	char guess_start[LEN + 1], guess_end[LEN + 1];
+    	get_string_from_index(arg->start, &guess_start);
+    	get_string_from_index(arg->end - 1, &guess_end);
+    	guess_start[LEN] = guess_end[LEN] = '\0'; // null terminated
+    	printf("Thread %d processing characters: %s to %s\n", arg->thread_id, guess_start, guess_end);
+    }
     for (unsigned long long i = arg->start; i < arg->end; i++) {
 	    // another thread / current thread found it.	
 	    if (atomic_load(&found)) {
@@ -674,7 +675,7 @@ int thread_manager(){
 	        pthread_join(threads[i], NULL);
 	        if(args[i].execution) active++;
         }
-        tactive += active;        
+        tactive += active;     
     }
     //double average_time = 0.0;
     //if (tactive > 0) average_time = aggregate_time / tactive; // averaged clocks
@@ -722,10 +723,8 @@ int thread_manager2(int sublevel){
 	partition2(chunk_part, chunk_num, chunk_size, 1);
 	partition2(chunk_part, chunk_num, chunk_size, 0);
 	shuffle(chunk_part, chunk_num);
-    int active = 0;
     for (int j = 0; j < chunk_num; j++) {
         int k = j * THREADS;
-        active = 0;
     	for (int i = 0; i < THREADS; i++) {
 	        args[i].thread_id = i;
 	        args[i].start = chunk_part[k + i];
@@ -734,9 +733,12 @@ int thread_manager2(int sublevel){
     	}
     	for (int i = 0; i < THREADS; i++) {
 	        pthread_join(threads[i], NULL);
-	        if(args[i].execution) active++;
         }
-        tactive += active;        
+        tactive += THREADS;    
+        if (atomic_load(&found)) {
+			if (DEBUG) printf("Threads run: %d / %lld\n", tactive, chunk_num);
+			break;
+		}       
     }
     //double average_time = 0.0;
     //if (tactive > 0) average_time = aggregate_time / tactive; // averaged clocks
@@ -782,12 +784,25 @@ int main() {
 		printf("%lld\n", total_comb);
     }
     */
-    
-    
+    /*
+    if (DEBUG) {
+    	printf("43lc3: ");
+    	MD5Init(&base);
+    	MD5Update(&base, "42lc3", LEN);
+    	MD5Final(&base);
+    	MDPrint(&base);
+    	
+    	printf("43lc2: ");
+    	MD5Init(&base);
+    	MD5Update(&base, "42lc2", LEN);
+    	MD5Final(&base);
+    	MDPrint(&base);
+    }
+    */
     //baseattempt();
     if (DEBUG) {
 		gettimeofday(&start, NULL); // Start timing
-		baseattempt2();
+		//baseattempt2();
 		gettimeofday(&end, NULL); // End timing
 		elapsed_time = (end.tv_sec - start.tv_sec) + 
 		                      (end.tv_usec - start.tv_usec) / 1e6;
